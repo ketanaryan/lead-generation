@@ -234,31 +234,42 @@ def main():
     try:
         with DDGS() as ddgs:
             # -------------------------------------------------------------
-            # NEW FEATURE: Local Map Scan for "NO WEBSITE" Businesses (Great for India)
+            # NEW FEATURE: Snippet Scraping for "NO WEBSITE" Phone Numbers
             # -------------------------------------------------------------
-            print("\n[Phase 1] Scanning Local Maps for businesses with NO websites...")
+            print("\n[Phase 1] Scraping Directories (JustDial, etc.) for Phone Numbers...")
             try:
-                # DuckDuckGo Maps API
-                maps_results = list(ddgs.maps(query, max_results=30))
+                # We search specifically for contact numbers
+                snippet_query = query + " contact number"
+                snippet_results = list(ddgs.text(snippet_query, max_results=30))
                 no_web_count = 0
-                for place in maps_results:
-                    name = place.get('title', '')
-                    phone = place.get('phone', '')
-                    site = place.get('url', '')
+                
+                phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
+                
+                for result in snippet_results:
+                    href = result.get('href', '').lower()
+                    body = result.get('body', '')
+                    title = result.get('title', '')
                     
-                    if phone and not site: # BINGO! No website, but has phone
-                        lead_line = f"Company: {name} | Phone: {phone} | Location: {place.get('address', '')}"
-                        if lead_line not in contacted:
-                            with open('no_website_leads.txt', 'a', encoding='utf-8') as f:
-                                f.write(lead_line + '\n')
-                            contacted.add(lead_line)
-                            with open(contacted_file, 'a', encoding='utf-8') as f:
-                                f.write(lead_line + '\n')
-                            no_web_count += 1
+                    # If it's a directory link, they usually don't have their own website
+                    if any(d in href for d in ignore_sites):
+                        phones = phone_pattern.findall(body)
+                        if phones:
+                            phone = phones[0]
+                            lead_line = f"Company/Listing: {title} | Phone: {phone} | Source: {href}"
+                            if lead_line not in contacted:
+                                with open('no_website_leads.txt', 'a', encoding='utf-8') as f:
+                                    f.write(lead_line + '\n')
+                                contacted.add(lead_line)
+                                with open(contacted_file, 'a', encoding='utf-8') as f:
+                                    f.write(lead_line + '\n')
+                                no_web_count += 1
+                                
                 if no_web_count > 0:
-                    print(f"  -> BINGO! Found {no_web_count} businesses with NO website but with Phone Numbers. Saved to no_website_leads.txt!")
+                    print(f"  -> BINGO! Extracted {no_web_count} phone numbers from directories. Saved to no_website_leads.txt!")
+                else:
+                    print("  -> No phone numbers found in directory snippets this run.")
             except Exception as e:
-                pass # Maps might fail if place is too broad, silently skip
+                print(f"  -> Skipping Phase 1 due to ratelimit: {e}")
 
             # -------------------------------------------------------------
             # Phase 2: Web Scan for Existing Websites
