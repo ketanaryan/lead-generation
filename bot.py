@@ -102,23 +102,31 @@ def main():
     print(f"=== GITHUB ACTIONS OUTREACH BOT ===")
     print(f"Targeting: {query}")
     
-    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor']
+    # Ignore huge directories so we only audit small business websites
+    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce']
     
     emails_sent_today = 0
     
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=30))
+            # INCREASED to 150 results so it audits a massive amount of websites
+            results = list(ddgs.text(query, max_results=150))
+            print(f"Found {len(results)} total search results from DuckDuckGo.")
             
+            skipped_dirs = 0
             for result in results:
-                if emails_sent_today >= 5: # Limit to 5 per run to stay super safe
+                if emails_sent_today >= 15: # Max 15 emails per run to stay super safe
                     break
                     
                 website_url = result['href']
                 name = result['title']
                 
-                if any(site in website_url.lower() for site in ignore_sites): continue
-                if website_url in contacted: continue
+                if any(site in website_url.lower() for site in ignore_sites): 
+                    skipped_dirs += 1
+                    continue
+                    
+                if website_url in contacted: 
+                    continue
                     
                 print(f"\nAuditing: {website_url}")
                 email, website_problems = analyze_website_and_get_email(website_url)
@@ -134,6 +142,12 @@ def main():
                             f.write(email + '\n')
                         emails_sent_today += 1
                         time.sleep(10) # Pause between emails
+                elif website_problems:
+                    print("  -> Bad site, but no public email found.")
+                else:
+                    print("  -> Passed strict audit. Skipping.")
+                    
+            print(f"\nSkipped {skipped_dirs} big directory websites (Yelp, BBB, etc.)")
     except Exception as e:
         print(f"Error: {e}")
         
