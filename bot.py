@@ -34,6 +34,17 @@ def analyze_website_and_get_email(url):
         email_pattern = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
         emails = set(email_pattern.findall(response.text))
         
+        # Smart Feature: If email isn't on the homepage, check the /contact page!
+        if not emails:
+            base_url = url.rstrip('/')
+            for path in ['/contact', '/contact-us']:
+                try:
+                    contact_response = requests.get(base_url + path, headers=headers, timeout=5)
+                    if contact_response.status_code == 200:
+                        emails.update(email_pattern.findall(contact_response.text))
+                except:
+                    pass
+        
         phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
         phones = set(phone_pattern.findall(response.text))
         valid_phone = list(phones)[0] if phones else None
