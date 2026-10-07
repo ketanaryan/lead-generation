@@ -34,14 +34,21 @@ def analyze_website_and_get_email(url):
         email_pattern = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
         emails = set(email_pattern.findall(response.text))
         
+        phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
+        phones = set(phone_pattern.findall(response.text))
+        valid_phone = list(phones)[0] if phones else None
+        
         bad_emails = ['your@email.com', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite.com']
         valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', 'wixpress.com']) and not any(bad in e.lower() for bad in bad_emails)]
+        
         if valid_emails:
-            return valid_emails[0], " | ".join(issues)
+            return valid_emails[0], valid_phone, " | ".join(issues)
+        elif valid_phone:
+            return None, valid_phone, " | ".join(issues)
             
     except Exception:
         pass
-    return None, None
+    return None, None, None
 
 def send_email(target_email, company, website, issues):
     sender_email = os.environ.get('GMAIL_USER')
@@ -130,7 +137,7 @@ def main():
                     continue
                     
                 print(f"\nAuditing: {website_url}")
-                email, website_problems = analyze_website_and_get_email(website_url)
+                email, phone, website_problems = analyze_website_and_get_email(website_url)
                 
                 if email and email not in contacted:
                     print(f"  -> Found BAD SITE. Email: {email}")
@@ -143,8 +150,12 @@ def main():
                             f.write(email + '\n')
                         emails_sent_today += 1
                         time.sleep(10) # Pause between emails
+                elif website_problems and phone:
+                    print(f"  -> Bad site, NO email, but FOUND PHONE: {phone}")
+                    with open('phone_leads.txt', 'a') as f:
+                        f.write(f"Company: {name} | Phone: {phone} | URL: {website_url} | Issues: {website_problems}\n")
                 elif website_problems:
-                    print("  -> Bad site, but no public email found.")
+                    print("  -> Bad site, but NO email and NO phone found.")
                 else:
                     print("  -> Passed strict audit. Skipping.")
                     
