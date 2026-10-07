@@ -4,7 +4,16 @@ on:
   schedule:
     # Runs every 8 hours (3 times a day)
     - cron: '0 */8 * * *'
-  workflow_dispatch: # Allows you to run it manually by clicking a button
+  workflow_dispatch:
+    inputs:
+      custom_niche:
+        description: 'Specific Niche (e.g., dentists). Leave blank for random.'
+        required: false
+        type: string
+      custom_city:
+        description: 'Specific City (e.g., Mumbai, India). Leave blank for random.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -28,11 +37,12 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASS: ${{ secrets.GMAIL_PASS }}
+          CUSTOM_NICHE: ${{ inputs.custom_niche }}
+          CUSTOM_CITY: ${{ inputs.custom_city }}
         run: python bot.py
 
       - name: Commit Contacted List
-        # This saves the 'contacted.txt' file back to GitHub so it remembers who it emailed tomorrow
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: "Auto-update contacted leads and phone lists"
-          file_pattern: contacted.txt phone_leads.txt
+          commit_message: "Auto-update leads and phone lists"
+          file_pattern: contacted.txt phone_leads.txt no_website_leads.txt

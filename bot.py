@@ -213,20 +213,55 @@ def main():
     with open(contacted_file) as f:
         contacted = set(f.read().splitlines())
         
-    niche = random.choice(niches)
-    city = random.choice(cities)
+    # v5.0: Manual Target Override
+    custom_niche = os.environ.get('CUSTOM_NICHE')
+    custom_city = os.environ.get('CUSTOM_CITY')
+    
+    niche = custom_niche if custom_niche else random.choice(niches)
+    city = custom_city if custom_city else random.choice(cities)
     query = f'"{niche}" in "{city}"'
     
-    print(f"=== MULTI-SERVICE AGENCY OUTREACH BOT v4.0 ===")
+    print(f"=== MULTI-SERVICE AGENCY OUTREACH BOT v5.0 ===")
     print(f"Targeting: {query}")
     
-    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch']
+    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch', 'indiamart', 'justdial', 'sulekha']
     
     emails_sent_today = 0
     skipped_dirs = 0
     
     try:
         with DDGS() as ddgs:
+            # -------------------------------------------------------------
+            # NEW FEATURE: Local Map Scan for "NO WEBSITE" Businesses (Great for India)
+            # -------------------------------------------------------------
+            print("\n[Phase 1] Scanning Local Maps for businesses with NO websites...")
+            try:
+                # DuckDuckGo Maps API
+                maps_results = list(ddgs.maps(query, max_results=30))
+                no_web_count = 0
+                for place in maps_results:
+                    name = place.get('title', '')
+                    phone = place.get('phone', '')
+                    site = place.get('url', '')
+                    
+                    if phone and not site: # BINGO! No website, but has phone
+                        lead_line = f"Company: {name} | Phone: {phone} | Location: {place.get('address', '')}"
+                        if lead_line not in contacted:
+                            with open('no_website_leads.txt', 'a', encoding='utf-8') as f:
+                                f.write(lead_line + '\n')
+                            contacted.add(lead_line)
+                            with open(contacted_file, 'a', encoding='utf-8') as f:
+                                f.write(lead_line + '\n')
+                            no_web_count += 1
+                if no_web_count > 0:
+                    print(f"  -> BINGO! Found {no_web_count} businesses with NO website but with Phone Numbers. Saved to no_website_leads.txt!")
+            except Exception as e:
+                pass # Maps might fail if place is too broad, silently skip
+
+            # -------------------------------------------------------------
+            # Phase 2: Web Scan for Existing Websites
+            # -------------------------------------------------------------
+            print("\n[Phase 2] Scanning Web for Technical Audits...")
             results = list(ddgs.text(query, max_results=150))
             
             for result in results:
@@ -262,7 +297,7 @@ def main():
                         time.sleep(12)
                 elif lead_category and phone:
                     print(f"  -> {lead_category} Lead, NO email, but FOUND PHONE: {phone}")
-                    with open('phone_leads.txt', 'a') as f:
+                    with open('phone_leads.txt', 'a', encoding='utf-8') as f:
                         f.write(f"Category: {lead_category} | Company: {name} | Phone: {phone} | URL: {website_url} | Issues: {issues}\n")
                 elif lead_category:
                     print(f"  -> {lead_category} site, but NO contact info found.")
