@@ -28,6 +28,24 @@ def extract_emails_advanced(html_content, text_content):
                 emails.add(clean_email)
     return emails
 
+def detect_tech_stack(html):
+    # CLAY.COM FEATURE: Deep Tech Stack & Pixel Detection
+    platform = "Custom Code"
+    if 'wp-content' in html or 'wp-includes' in html: platform = "WordPress"
+    elif 'cdn.shopify.com' in html: platform = "Shopify"
+    elif 'data-wf-site' in html or 'w-webflow' in html: platform = "Webflow"
+    elif 'wix.com' in html or 'wixpress' in html: platform = "Wix"
+    elif 'squarespace.com' in html: platform = "Squarespace"
+    elif 'id="root"' in html or 'id="__next"' in html: platform = "React/Modern JS"
+    
+    pixels = []
+    if 'fbevents.js' in html: pixels.append("Facebook Pixel")
+    if 'googletagmanager' in html or 'google-analytics' in html: pixels.append("Google Analytics")
+    if 'snap.licdn.com' in html: pixels.append("LinkedIn Insight Tag")
+    if 'hotjar' in html: pixels.append("Hotjar")
+    
+    return platform, pixels
+
 def analyze_website_and_get_email(url):
     try:
         headers = {'User-Agent': random.choice([
@@ -39,40 +57,35 @@ def analyze_website_and_get_email(url):
         response = session.get(url, headers=headers, timeout=12)
         load_time = time.time() - start_time
         
-        if response.status_code != 200: return None, None, None, None
+        if response.status_code != 200: return None, None, None, None, None
             
         html = response.text.lower()
-        
-        # UPGRADE 5: Javascript-Heavy SPA Detection
-        # Prevents false positives where React/Next.js sites look "empty" or lack traditional tags.
-        is_spa = any(marker in html for marker in [
-            'id="root"', 'id="__next"', 'id="app"', 'data-reactroot', 
-            'ng-version', 'nuxt', '<script src="/_next/', 'gatsby'
-        ])
+        platform, pixels = detect_tech_stack(html)
+        is_spa = platform == "React/Modern JS"
         
         rebuild_issues = []
         if load_time > 3.0: rebuild_issues.append("Slow Load Time")
         if url.startswith("http://"): rebuild_issues.append("Not Secure (No SSL)")
         
-        # Only check traditional HTML structure if it's NOT a modern Javascript framework
         if not is_spa:
             if 'name="viewport"' not in html and "name='viewport'" not in html: rebuild_issues.append("Not Mobile Friendly")
             if html.count('<table') > 3: rebuild_issues.append("Outdated Design")
         
         seo_issues = []
         if not is_spa and '<h1' not in html: seo_issues.append("Missing H1 SEO Tags")
-        if 'google-analytics.com' not in html and 'googletagmanager' not in html: seo_issues.append("No Traffic Analytics")
+        if "Google Analytics" not in pixels: seo_issues.append("No Traffic Analytics")
+        if "Facebook Pixel" not in pixels: seo_issues.append("No Retargeting Pixel")
         
         # SMART CATEGORIZATION ENGINE
         if rebuild_issues:
             lead_category = "REBUILD"
             issues_str = " | ".join(rebuild_issues)
         elif seo_issues:
-            lead_category = "SEO"
+            lead_category = "SEO_MARKETING"
             issues_str = " | ".join(seo_issues)
         else:
             lead_category = "AUTOMATION"
-            issues_str = "Modern JS Framework (Perfect)" if is_spa else "Perfect Website"
+            issues_str = f"Perfect {platform} Website"
             
         emails = extract_emails_advanced(response.text, response.text)
         
@@ -93,24 +106,26 @@ def analyze_website_and_get_email(url):
         bad_emails = ['your@', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite', 'no-reply', 'noreply', 'sentry.io', 'wixpress', 'admin@example']
         valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']) and not any(bad in e.lower() for bad in bad_emails)]
         
+        tech_data = {"platform": platform, "pixels": pixels}
+        
         if valid_emails:
-            return valid_emails[0], valid_phone, lead_category, issues_str
+            return valid_emails[0], valid_phone, lead_category, issues_str, tech_data
         elif valid_phone:
-            return None, valid_phone, lead_category, issues_str
+            return None, valid_phone, lead_category, issues_str, tech_data
             
     except Exception:
         pass
-    return None, None, None, None
+    return None, None, None, None, None
 
 def get_indepth_issue_text(issues_str):
-    # IN-DEPTH ISSUE EXPANSION: Maps basic flags to painful business impacts
     issue_details = {
-        "Not Mobile Friendly": "Missing responsive viewport tags. Your site breaks on modern phones, forcing customers to pinch and zoom (which causes a massive bounce rate).",
-        "Slow Load Time": "Core server response took too long. Google penalizes local businesses with slow load times, actively pushing you down the search rankings.",
-        "Not Secure (No SSL)": "Your site loads over an unencrypted HTTP connection. Modern browsers now show a red 'Not Secure' warning to your visitors, which breaks customer trust.",
-        "Outdated Design": "Built using an outdated HTML structure (table-based layouts). It makes the business look like it hasn't been updated in years compared to local competitors.",
-        "Missing H1 SEO Tags": "Your homepage is completely missing the primary H1 header tag. This means Google's algorithm literally doesn't know what keywords to rank you for.",
-        "No Traffic Analytics": "No Google Analytics or Tag Manager tracking detected. You have zero visibility on how many people visit your site or where you are losing customers."
+        "Not Mobile Friendly": "Missing responsive viewport tags. Your site breaks on modern phones, forcing customers to pinch and zoom (massive bounce rate).",
+        "Slow Load Time": "Core server response is lagging. Google penalizes slow load times, actively pushing you down the search rankings.",
+        "Not Secure (No SSL)": "Your site loads over HTTP. Modern browsers show a red 'Not Secure' warning, breaking customer trust.",
+        "Outdated Design": "Built using an outdated HTML structure. It makes the business look like it hasn't been updated in years.",
+        "Missing H1 SEO Tags": "Your homepage is missing the primary H1 tag. Google's algorithm literally doesn't know what keywords to rank you for.",
+        "No Traffic Analytics": "No Google Analytics tracking detected. You have zero visibility on where your traffic is coming from.",
+        "No Retargeting Pixel": "No Meta/Facebook Pixel detected. You are unable to run retargeting ads to people who visit your site and leave."
     }
     
     bullets = []
@@ -122,40 +137,47 @@ def get_indepth_issue_text(issues_str):
         return "\n".join(bullets)
     return "- " + issues_str
 
-def generate_dynamic_email(company, website, lead_category, issues):
-    greetings = [f"Hi {company},", f"Hey {company},", f"Hello team at {company},", f"Hi there,"]
+def generate_dynamic_email(company, website, lead_category, issues, tech_data):
+    platform = tech_data['platform']
+    
+    greetings = [f"Hi {company},", f"Hey {company},", f"Hello team at {company},"]
     intros = [
         f"I was doing some research on local businesses and came across your website ({website}).",
         f"I recently found your website ({website}) while looking for local businesses in the area."
     ]
     signoffs = ["Best,", "Cheers,", "Regards,", "Thanks,"]
 
+    # CLAY-LIKE HYPER-PERSONALIZATION based on Tech Stack
+    platform_comment = ""
+    if platform != "Custom Code":
+        platform_comment = f"I noticed your site is currently running on {platform}. "
+
     if lead_category == "REBUILD":
         mid = [
-            "I ran a quick technical audit and noticed a few deep issues that are actively turning away mobile customers:",
-            "While browsing, I noticed a couple of technical red flags in your source code that usually push mobile visitors away:"
+            f"{platform_comment}I ran a quick technical audit and noticed a few deep issues that are actively turning away mobile customers:",
+            f"{platform_comment}While browsing, I noticed a couple of technical red flags in your source code that usually push mobile visitors away:"
         ]
         pitch = [
-            "I'm a freelance developer, and I specialize in rebuilding local business sites to fix these exact issues. A fast, modern, mobile-friendly website usually pays for itself by bringing in just one extra client.",
+            f"I'm a freelance developer, and I specialize in rebuilding local business sites to fix these exact issues. Because you're already familiar with {platform}, upgrading to a lightning-fast modern version of it is very straightforward.",
             "I help local businesses fix these problems by rebuilding their websites to be lightning-fast and fully mobile responsive."
         ]
         cta = ["Would you be open to a quick 5-minute chat to see if a redesign makes sense for you?"]
 
-    elif lead_category == "SEO":
+    elif lead_category == "SEO_MARKETING":
         mid = [
-            "Your website looks visually great, but I ran an audit and noticed you are missing some critical SEO tags and traffic tracking software:",
-            "I love the design of your site, but I noticed it's missing fundamental on-page SEO optimization in the backend:"
+            f"Your website looks visually great, but I ran an audit and noticed you are missing some critical tracking infrastructure:",
+            f"{platform_comment}I love the design of your site, but I noticed it's missing fundamental on-page tracking in the backend:"
         ]
         pitch = [
-            "I specialize in Technical SEO for local businesses. I can optimize your site's code so you actually rank on the first page of Google and start tracking where your customers are coming from.",
-            "I help businesses fix these SEO gaps so they rank higher locally and stop losing search traffic to competitors."
+            "I specialize in Technical SEO and Analytics for local businesses. I can optimize your site's code so you actually rank higher and start tracking where your customers are coming from.",
+            "I help businesses fix these tracking gaps so they can finally see their data and stop losing traffic to competitors."
         ]
-        cta = ["Are you open to a brief 5-minute chat this week to see if we can boost your Google ranking?"]
+        cta = ["Are you open to a brief 5-minute chat this week to see if we can boost your tracking and ranking?"]
 
     else:
         mid = [
-            "Honestly, your website looks fantastic. It's fast, mobile-friendly, and perfectly optimized. You clearly invest in your online presence.",
-            "I run technical audits on local sites, and yours is one of the few that passed with flying colors. Great job on the web presence!"
+            f"Honestly, your {platform} website looks fantastic. It's fast, mobile-friendly, and perfectly optimized. You clearly invest in your online presence.",
+            f"I run technical audits on local sites, and yours is one of the few {platform} sites that passed with flying colors. Great job on the web presence!"
         ]
         pitch = [
             "Since your front-facing marketing is locked in, I'm curious if your back-office is fully optimized? I build custom internal software, CRM integrations, and AI automations to help businesses eliminate manual data entry and save hours of admin work every week.",
@@ -165,13 +187,13 @@ def generate_dynamic_email(company, website, lead_category, issues):
 
     body = f"{random.choice(greetings)}\n\n{random.choice(intros)}\n\n{random.choice(mid)}\n\n"
     
-    if lead_category in ["REBUILD", "SEO"]:
+    if lead_category in ["REBUILD", "SEO_MARKETING"]:
         body += f"{get_indepth_issue_text(issues)}\n\n"
         
     body += f"{random.choice(pitch)}\n\n{random.choice(cta)}\n\n{random.choice(signoffs)}\nKetan\nWeb Developer / Tech Consultant"
     return body
 
-def send_email(target_email, company, website, lead_category, issues):
+def send_email(target_email, company, website, lead_category, issues, tech_data):
     sender_email = os.environ.get('GMAIL_USER')
     app_password = os.environ.get('GMAIL_PASS')
     
@@ -179,7 +201,7 @@ def send_email(target_email, company, website, lead_category, issues):
         return False
         
     subject = f"Quick question about {website}"
-    body = generate_dynamic_email(company, website, lead_category, issues)
+    body = generate_dynamic_email(company, website, lead_category, issues, tech_data)
         
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -215,7 +237,6 @@ def main():
     with open(contacted_file, 'r', encoding='utf-8') as f:
         contacted = set(f.read().splitlines())
         
-    # v5.0: Manual Target Override
     custom_niche = os.environ.get('CUSTOM_NICHE')
     custom_city = os.environ.get('CUSTOM_CITY')
     
@@ -223,7 +244,7 @@ def main():
     city = custom_city if custom_city else random.choice(cities)
     query = f'"{niche}" in "{city}"'
     
-    print(f"=== MULTI-SERVICE AGENCY OUTREACH BOT v5.0 ===")
+    print(f"=== CLAY.COM STYLE OUTREACH BOT v6.0 ===")
     print(f"Targeting: {query}")
     
     ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch', 'indiamart', 'justdial', 'sulekha']
@@ -233,16 +254,11 @@ def main():
     
     try:
         with DDGS() as ddgs:
-            # -------------------------------------------------------------
-            # NEW FEATURE: Snippet Scraping for "NO WEBSITE" Phone Numbers
-            # -------------------------------------------------------------
             print("\n[Phase 1] Scraping Directories (JustDial, etc.) for Phone Numbers...")
             try:
-                # We search specifically for contact numbers
                 snippet_query = query + " contact number"
                 snippet_results = list(ddgs.text(snippet_query, max_results=30))
                 no_web_count = 0
-                
                 phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
                 
                 for result in snippet_results:
@@ -250,7 +266,6 @@ def main():
                     body = result.get('body', '')
                     title = result.get('title', '')
                     
-                    # If it's a directory link, they usually don't have their own website
                     if any(d in href for d in ignore_sites):
                         phones = phone_pattern.findall(body)
                         if phones:
@@ -265,16 +280,13 @@ def main():
                                 no_web_count += 1
                                 
                 if no_web_count > 0:
-                    print(f"  -> BINGO! Extracted {no_web_count} phone numbers from directories. Saved to no_website_leads.txt!")
+                    print(f"  -> BINGO! Extracted {no_web_count} phone numbers from directories.")
                 else:
                     print("  -> No phone numbers found in directory snippets this run.")
             except Exception as e:
                 print(f"  -> Skipping Phase 1 due to ratelimit: {e}")
 
-            # -------------------------------------------------------------
-            # Phase 2: Web Scan for Existing Websites
-            # -------------------------------------------------------------
-            print("\n[Phase 2] Scanning Web for Technical Audits...")
+            print("\n[Phase 2] Deep Signal Scanning (Clay.com Style)...")
             results = list(ddgs.text(query, max_results=150))
             
             for result in results:
@@ -293,15 +305,18 @@ def main():
                     continue
                     
                 print(f"\nAuditing: {website_url}")
-                email, phone, lead_category, issues = analyze_website_and_get_email(website_url)
+                email, phone, lead_category, issues, tech_data = analyze_website_and_get_email(website_url)
+                
+                if tech_data:
+                    print(f"  -> Stack Detected: {tech_data['platform']} | Pixels: {tech_data['pixels']}")
                 
                 if email and email not in contacted:
                     print(f"  -> Found {lead_category} Lead! Email: {email}")
-                    success = send_email(email, name, website_url, lead_category, issues)
+                    success = send_email(email, name, website_url, lead_category, issues, tech_data)
                     
                     if success:
-                        print(f"  -> {lead_category} PITCH SENT AUTOMATICALLY!")
-                        with open(contacted_file, 'a') as f:
+                        print(f"  -> CLAY-STYLE PITCH SENT AUTOMATICALLY!")
+                        with open(contacted_file, 'a', encoding='utf-8') as f:
                             f.write(website_url + '\n')
                             f.write(domain + '\n')
                             f.write(email + '\n')
@@ -309,9 +324,9 @@ def main():
                         emails_sent_today += 1
                         time.sleep(12)
                 elif lead_category and phone:
-                    print(f"  -> {lead_category} Lead, NO email, but FOUND PHONE: {phone}")
+                    print(f"  -> Lead, NO email, but FOUND PHONE: {phone}")
                     with open('phone_leads.txt', 'a', encoding='utf-8') as f:
-                        f.write(f"Category: {lead_category} | Company: {name} | Phone: {phone} | URL: {website_url} | Issues: {issues}\n")
+                        f.write(f"Category: {lead_category} | Tech: {tech_data['platform']} | Phone: {phone} | URL: {website_url}\n")
                 elif lead_category:
                     print(f"  -> {lead_category} site, but NO contact info found.")
                     
