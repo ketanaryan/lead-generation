@@ -12,14 +12,13 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
-# UPGRADE 1: Enterprise-Grade Network Robustness (Auto-Retries for flaky websites)
+# UPGRADE 1: Enterprise-Grade Network Robustness
 session = requests.Session()
 retries = Retry(total=2, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 session.mount('http://', HTTPAdapter(max_retries=retries))
 session.mount('https://', HTTPAdapter(max_retries=retries))
 
 def extract_emails_advanced(html_content, text_content):
-    # UPGRADE 2: Deep HTML Parsing (Finds emails hidden in 'mailto:' buttons that regex misses)
     emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text_content))
     soup = BeautifulSoup(html_content, 'html.parser')
     for a in soup.find_all('a', href=True):
@@ -33,29 +32,37 @@ def analyze_website_and_get_email(url):
     try:
         headers = {'User-Agent': random.choice([
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ])}
         
         start_time = time.time()
         response = session.get(url, headers=headers, timeout=12)
         load_time = time.time() - start_time
         
-        if response.status_code != 200: return None, None, None
+        if response.status_code != 200: return None, None, None, None
             
         html = response.text.lower()
-        issues = []
         
-        if 'name="viewport"' not in html and "name='viewport'" not in html: issues.append("Not Mobile Friendly")
-        if load_time > 3.0: issues.append("Slow Load Time")
-        if url.startswith("http://"): issues.append("Not Secure (No SSL)")
-        if '<h1' not in html: issues.append("Bad SEO")
-        if html.count('<table') > 3: issues.append("Outdated Design")
-        if 'google-analytics.com' not in html: issues.append("No Analytics")
-            
-        has_major = any(i in ["Not Mobile Friendly", "Not Secure (No SSL)", "Outdated Design"] for i in issues)
-        if not has_major and len(issues) < 2:
-            return None, None, None
+        rebuild_issues = []
+        if 'name="viewport"' not in html and "name='viewport'" not in html: rebuild_issues.append("Not Mobile Friendly")
+        if load_time > 3.0: rebuild_issues.append("Slow Load Time")
+        if url.startswith("http://"): rebuild_issues.append("Not Secure (No SSL)")
+        if html.count('<table') > 3: rebuild_issues.append("Outdated Design")
+        
+        seo_issues = []
+        if '<h1' not in html: seo_issues.append("Missing H1 SEO Tags")
+        if 'google-analytics.com' not in html and 'googletagmanager' not in html: seo_issues.append("No Traffic Analytics")
+        
+        # SMART CATEGORIZATION ENGINE
+        if rebuild_issues:
+            lead_category = "REBUILD"
+            issues_str = " | ".join(rebuild_issues)
+        elif seo_issues:
+            lead_category = "SEO"
+            issues_str = " | ".join(seo_issues)
+        else:
+            lead_category = "AUTOMATION"
+            issues_str = "Perfect Website"
             
         emails = extract_emails_advanced(response.text, response.text)
         
@@ -77,45 +84,69 @@ def analyze_website_and_get_email(url):
         valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']) and not any(bad in e.lower() for bad in bad_emails)]
         
         if valid_emails:
-            return valid_emails[0], valid_phone, " | ".join(issues)
+            return valid_emails[0], valid_phone, lead_category, issues_str
         elif valid_phone:
-            return None, valid_phone, " | ".join(issues)
+            return None, valid_phone, lead_category, issues_str
             
-    except requests.exceptions.RequestException:
-        pass
     except Exception:
         pass
-    return None, None, None
+    return None, None, None, None
 
-def generate_dynamic_email(company, website, issues):
-    # UPGRADE 3: Spintax Engine (Dynamic Text Generation) to completely bypass Gmail Spam Filters
+def generate_dynamic_email(company, website, lead_category, issues):
     greetings = [f"Hi {company},", f"Hey {company},", f"Hello team at {company},", f"Hi there,"]
     intros = [
         f"I was doing some research on local businesses and came across your website ({website}).",
-        f"I recently found your website ({website}) while looking for local businesses in the area.",
-        f"I was checking out local businesses online and landed on your site ({website})."
-    ]
-    mid = [
-        "I noticed a few technical issues that might be hurting your Google ranking and turning away mobile customers:",
-        "I ran a quick technical audit and found a few things that are likely costing you mobile traffic and SEO rankings:",
-        "While browsing, I noticed a couple of technical red flags that usually push mobile visitors away:"
-    ]
-    pitch = [
-        "I am a freelance web developer, and I specialize in rebuilding websites for local businesses to fix exactly these issues. A faster, mobile-friendly website usually pays for itself by bringing in just one or two extra jobs.",
-        "I help local businesses fix these exact problems by rebuilding their websites to be lightning-fast and fully mobile responsive. Typically, catching just one lost customer covers the whole project.",
-        "I'm a freelance developer focused on upgrading local business websites. Fixing these issues makes your site look incredibly professional on phones and helps you rank higher on Google."
-    ]
-    cta = [
-        "Would you be open to a quick 5-minute chat to see if a redesign makes sense for you?",
-        "Are you open to a brief 5-minute call this week to see if upgrading your site makes sense?",
-        "If you're interested in fixing this, would you be open to a quick 5-minute phone call?"
+        f"I recently found your website ({website}) while looking for local businesses in the area."
     ]
     signoffs = ["Best,", "Cheers,", "Regards,", "Thanks,"]
 
-    body = f"{random.choice(greetings)}\n\n{random.choice(intros)}\n\n{random.choice(mid)}\n- {issues}\n\n{random.choice(pitch)}\n\n{random.choice(cta)}\n\n{random.choice(signoffs)}\nKetan\nWeb Developer"
+    # 1. PITCH FOR TERRIBLE WEBSITES (REDESIGN)
+    if lead_category == "REBUILD":
+        mid = [
+            "I noticed a few technical issues that might be turning away mobile customers:",
+            "While browsing, I noticed a couple of technical red flags that usually push mobile visitors away:"
+        ]
+        pitch = [
+            "I'm a freelance developer, and I specialize in rebuilding local business sites to fix these exact issues. A fast, modern, mobile-friendly website usually pays for itself by bringing in just one extra client.",
+            "I help local businesses fix these problems by rebuilding their websites to be lightning-fast and fully mobile responsive."
+        ]
+        cta = ["Would you be open to a quick 5-minute chat to see if a redesign makes sense for you?"]
+
+    # 2. PITCH FOR DECENT WEBSITES WITH BAD SEO (TRAFFIC/SEO)
+    elif lead_category == "SEO":
+        mid = [
+            "Your website looks visually great, but I noticed you are missing some basic SEO tags and traffic tracking software.",
+            "I love the design of your site, but I noticed it's missing fundamental on-page SEO optimization and Google Analytics."
+        ]
+        pitch = [
+            "I specialize in Technical SEO for local businesses. I can optimize your site's code so you actually rank on the first page of Google and start tracking where your customers are coming from.",
+            "I help businesses fix these SEO gaps so they rank higher locally and stop losing search traffic to competitors."
+        ]
+        cta = ["Are you open to a brief 5-minute chat this week to see if we can boost your Google ranking?"]
+
+    # 3. PITCH FOR PERFECT WEBSITES (CUSTOM SOFTWARE / AUTOMATION)
+    else:
+        mid = [
+            "Honestly, your website looks fantastic. It's fast, mobile-friendly, and perfectly optimized. You clearly invest in your online presence.",
+            "I run technical audits on local sites, and yours is one of the few that passed with flying colors. Great job on the web presence!"
+        ]
+        pitch = [
+            "Since your front-facing marketing is locked in, I'm curious if your back-office is fully optimized? I build custom internal software, CRM integrations, and AI automations to help businesses eliminate manual data entry and save hours of admin work every week.",
+            "Because your website is already perfect, I wanted to reach out regarding back-office automation. I build custom scripts and AI tools that automate tedious manual tasks, invoicing, and lead follow-ups for local businesses."
+        ]
+        cta = ["If you have any manual processes you'd love to automate, would you be open to a quick 5-minute chat?"]
+
+    body = f"{random.choice(greetings)}\n\n{random.choice(intros)}\n\n{random.choice(mid)}\n"
+    
+    if lead_category in ["REBUILD", "SEO"]:
+        body += f"- {issues}\n\n"
+    else:
+        body += "\n"
+        
+    body += f"{random.choice(pitch)}\n\n{random.choice(cta)}\n\n{random.choice(signoffs)}\nKetan\nWeb Developer / Tech Consultant"
     return body
 
-def send_email(target_email, company, website, issues):
+def send_email(target_email, company, website, lead_category, issues):
     sender_email = os.environ.get('GMAIL_USER')
     app_password = os.environ.get('GMAIL_PASS')
     
@@ -123,7 +154,7 @@ def send_email(target_email, company, website, issues):
         return False
         
     subject = f"Quick question about {website}"
-    body = generate_dynamic_email(company, website, issues)
+    body = generate_dynamic_email(company, website, lead_category, issues)
         
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -132,15 +163,13 @@ def send_email(target_email, company, website, issues):
     msg.set_content(body)
     
     try:
-        # UPGRADE 4: Enforced Secure SSL Context for Maximum Security
         context = ssl.create_default_context()
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context)
         server.login(sender_email, app_password)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        print(f"Email failed: {e}")
+    except Exception:
         return False
 
 def get_domain(url):
@@ -163,7 +192,7 @@ def main():
     city = random.choice(cities)
     query = f'"{niche}" in "{city}"'
     
-    print(f"=== GITHUB ACTIONS OUTREACH BOT v3.0 (Enterprise Edition) ===")
+    print(f"=== MULTI-SERVICE AGENCY OUTREACH BOT v4.0 ===")
     print(f"Targeting: {query}")
     
     ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch']
@@ -174,7 +203,6 @@ def main():
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=150))
-            print(f"Found {len(results)} total search results from DuckDuckGo.")
             
             for result in results:
                 if emails_sent_today >= 15: 
@@ -192,31 +220,29 @@ def main():
                     continue
                     
                 print(f"\nAuditing: {website_url}")
-                email, phone, website_problems = analyze_website_and_get_email(website_url)
+                email, phone, lead_category, issues = analyze_website_and_get_email(website_url)
                 
                 if email and email not in contacted:
-                    print(f"  -> Found BAD SITE. Email: {email}")
-                    success = send_email(email, name, website_url, website_problems)
+                    print(f"  -> Found {lead_category} Lead! Email: {email}")
+                    success = send_email(email, name, website_url, lead_category, issues)
                     
                     if success:
-                        print(f"  -> SECURE EMAIL SENT AUTOMATICALLY!")
+                        print(f"  -> {lead_category} PITCH SENT AUTOMATICALLY!")
                         with open(contacted_file, 'a') as f:
                             f.write(website_url + '\n')
                             f.write(domain + '\n')
                             f.write(email + '\n')
                         contacted.update([website_url, domain, email])
                         emails_sent_today += 1
-                        time.sleep(12) # Slightly randomized/longer sleep for stealth
-                elif website_problems and phone:
-                    print(f"  -> Bad site, NO email, but FOUND PHONE: {phone}")
+                        time.sleep(12)
+                elif lead_category and phone:
+                    print(f"  -> {lead_category} Lead, NO email, but FOUND PHONE: {phone}")
                     with open('phone_leads.txt', 'a') as f:
-                        f.write(f"Company: {name} | Phone: {phone} | URL: {website_url} | Issues: {website_problems}\n")
-                elif website_problems:
-                    print("  -> Bad site, but NO email and NO phone found.")
-                else:
-                    print("  -> Passed strict audit. Skipping.")
+                        f.write(f"Category: {lead_category} | Company: {name} | Phone: {phone} | URL: {website_url} | Issues: {issues}\n")
+                elif lead_category:
+                    print(f"  -> {lead_category} site, but NO contact info found.")
                     
-            print(f"\nSkipped {skipped_dirs} big directory websites.")
+            print(f"\nSkipped {skipped_dirs} directory websites.")
     except Exception as e:
         print(f"Error during search: {e}")
         
