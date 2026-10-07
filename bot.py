@@ -43,14 +43,24 @@ def analyze_website_and_get_email(url):
             
         html = response.text.lower()
         
+        # UPGRADE 5: Javascript-Heavy SPA Detection
+        # Prevents false positives where React/Next.js sites look "empty" or lack traditional tags.
+        is_spa = any(marker in html for marker in [
+            'id="root"', 'id="__next"', 'id="app"', 'data-reactroot', 
+            'ng-version', 'nuxt', '<script src="/_next/', 'gatsby'
+        ])
+        
         rebuild_issues = []
-        if 'name="viewport"' not in html and "name='viewport'" not in html: rebuild_issues.append("Not Mobile Friendly")
         if load_time > 3.0: rebuild_issues.append("Slow Load Time")
         if url.startswith("http://"): rebuild_issues.append("Not Secure (No SSL)")
-        if html.count('<table') > 3: rebuild_issues.append("Outdated Design")
+        
+        # Only check traditional HTML structure if it's NOT a modern Javascript framework
+        if not is_spa:
+            if 'name="viewport"' not in html and "name='viewport'" not in html: rebuild_issues.append("Not Mobile Friendly")
+            if html.count('<table') > 3: rebuild_issues.append("Outdated Design")
         
         seo_issues = []
-        if '<h1' not in html: seo_issues.append("Missing H1 SEO Tags")
+        if not is_spa and '<h1' not in html: seo_issues.append("Missing H1 SEO Tags")
         if 'google-analytics.com' not in html and 'googletagmanager' not in html: seo_issues.append("No Traffic Analytics")
         
         # SMART CATEGORIZATION ENGINE
@@ -62,7 +72,7 @@ def analyze_website_and_get_email(url):
             issues_str = " | ".join(seo_issues)
         else:
             lead_category = "AUTOMATION"
-            issues_str = "Perfect Website"
+            issues_str = "Modern JS Framework (Perfect)" if is_spa else "Perfect Website"
             
         emails = extract_emails_advanced(response.text, response.text)
         
