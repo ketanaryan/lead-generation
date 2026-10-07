@@ -208,9 +208,11 @@ def main():
     with open('cities.txt') as f: cities = f.read().splitlines()
     
     contacted_file = 'contacted.txt'
-    if not os.path.exists(contacted_file): open(contacted_file, 'w').close()
+    if not os.path.exists(contacted_file): open(contacted_file, 'w', encoding='utf-8').close()
+    if not os.path.exists('phone_leads.txt'): open('phone_leads.txt', 'w', encoding='utf-8').close()
+    if not os.path.exists('no_website_leads.txt'): open('no_website_leads.txt', 'w', encoding='utf-8').close()
         
-    with open(contacted_file) as f:
+    with open(contacted_file, 'r', encoding='utf-8') as f:
         contacted = set(f.read().splitlines())
         
     # v5.0: Manual Target Override
