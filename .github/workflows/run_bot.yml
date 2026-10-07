@@ -6,6 +6,9 @@ on:
     - cron: '0 */8 * * *'
   workflow_dispatch: # Allows you to run it manually by clicking a button
 
+permissions:
+  contents: write
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
