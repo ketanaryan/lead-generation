@@ -34,7 +34,8 @@ def analyze_website_and_get_email(url):
         email_pattern = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
         emails = set(email_pattern.findall(response.text))
         
-        valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', 'wixpress.com'])]
+        bad_emails = ['your@email.com', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite.com']
+        valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', 'wixpress.com']) and not any(bad in e.lower() for bad in bad_emails)]
         if valid_emails:
             return valid_emails[0], " | ".join(issues)
             
