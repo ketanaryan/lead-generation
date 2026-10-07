@@ -102,6 +102,26 @@ def analyze_website_and_get_email(url):
         pass
     return None, None, None, None
 
+def get_indepth_issue_text(issues_str):
+    # IN-DEPTH ISSUE EXPANSION: Maps basic flags to painful business impacts
+    issue_details = {
+        "Not Mobile Friendly": "Missing responsive viewport tags. Your site breaks on modern phones, forcing customers to pinch and zoom (which causes a massive bounce rate).",
+        "Slow Load Time": "Core server response took too long. Google penalizes local businesses with slow load times, actively pushing you down the search rankings.",
+        "Not Secure (No SSL)": "Your site loads over an unencrypted HTTP connection. Modern browsers now show a red 'Not Secure' warning to your visitors, which breaks customer trust.",
+        "Outdated Design": "Built using an outdated HTML structure (table-based layouts). It makes the business look like it hasn't been updated in years compared to local competitors.",
+        "Missing H1 SEO Tags": "Your homepage is completely missing the primary H1 header tag. This means Google's algorithm literally doesn't know what keywords to rank you for.",
+        "No Traffic Analytics": "No Google Analytics or Tag Manager tracking detected. You have zero visibility on how many people visit your site or where you are losing customers."
+    }
+    
+    bullets = []
+    for raw_issue in issues_str.split(' | '):
+        if raw_issue in issue_details:
+            bullets.append(f"❌ {raw_issue}:\n   {issue_details[raw_issue]}")
+            
+    if bullets:
+        return "\n".join(bullets)
+    return "- " + issues_str
+
 def generate_dynamic_email(company, website, lead_category, issues):
     greetings = [f"Hi {company},", f"Hey {company},", f"Hello team at {company},", f"Hi there,"]
     intros = [
@@ -110,11 +130,10 @@ def generate_dynamic_email(company, website, lead_category, issues):
     ]
     signoffs = ["Best,", "Cheers,", "Regards,", "Thanks,"]
 
-    # 1. PITCH FOR TERRIBLE WEBSITES (REDESIGN)
     if lead_category == "REBUILD":
         mid = [
-            "I noticed a few technical issues that might be turning away mobile customers:",
-            "While browsing, I noticed a couple of technical red flags that usually push mobile visitors away:"
+            "I ran a quick technical audit and noticed a few deep issues that are actively turning away mobile customers:",
+            "While browsing, I noticed a couple of technical red flags in your source code that usually push mobile visitors away:"
         ]
         pitch = [
             "I'm a freelance developer, and I specialize in rebuilding local business sites to fix these exact issues. A fast, modern, mobile-friendly website usually pays for itself by bringing in just one extra client.",
@@ -122,11 +141,10 @@ def generate_dynamic_email(company, website, lead_category, issues):
         ]
         cta = ["Would you be open to a quick 5-minute chat to see if a redesign makes sense for you?"]
 
-    # 2. PITCH FOR DECENT WEBSITES WITH BAD SEO (TRAFFIC/SEO)
     elif lead_category == "SEO":
         mid = [
-            "Your website looks visually great, but I noticed you are missing some basic SEO tags and traffic tracking software.",
-            "I love the design of your site, but I noticed it's missing fundamental on-page SEO optimization and Google Analytics."
+            "Your website looks visually great, but I ran an audit and noticed you are missing some critical SEO tags and traffic tracking software:",
+            "I love the design of your site, but I noticed it's missing fundamental on-page SEO optimization in the backend:"
         ]
         pitch = [
             "I specialize in Technical SEO for local businesses. I can optimize your site's code so you actually rank on the first page of Google and start tracking where your customers are coming from.",
@@ -134,7 +152,6 @@ def generate_dynamic_email(company, website, lead_category, issues):
         ]
         cta = ["Are you open to a brief 5-minute chat this week to see if we can boost your Google ranking?"]
 
-    # 3. PITCH FOR PERFECT WEBSITES (CUSTOM SOFTWARE / AUTOMATION)
     else:
         mid = [
             "Honestly, your website looks fantastic. It's fast, mobile-friendly, and perfectly optimized. You clearly invest in your online presence.",
@@ -146,12 +163,10 @@ def generate_dynamic_email(company, website, lead_category, issues):
         ]
         cta = ["If you have any manual processes you'd love to automate, would you be open to a quick 5-minute chat?"]
 
-    body = f"{random.choice(greetings)}\n\n{random.choice(intros)}\n\n{random.choice(mid)}\n"
+    body = f"{random.choice(greetings)}\n\n{random.choice(intros)}\n\n{random.choice(mid)}\n\n"
     
     if lead_category in ["REBUILD", "SEO"]:
-        body += f"- {issues}\n\n"
-    else:
-        body += "\n"
+        body += f"{get_indepth_issue_text(issues)}\n\n"
         
     body += f"{random.choice(pitch)}\n\n{random.choice(cta)}\n\n{random.choice(signoffs)}\nKetan\nWeb Developer / Tech Consultant"
     return body
