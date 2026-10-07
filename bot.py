@@ -3,19 +3,23 @@ import random
 import time
 import requests
 import re
-from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 from ddgs import DDGS
 import smtplib
 from email.message import EmailMessage
 
 def analyze_website_and_get_email(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        # UPGRADE 1: Rotating User-Agents to bypass basic firewalls
+        headers = {'User-Agent': random.choice([
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ])}
         start_time = time.time()
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=12)
         load_time = time.time() - start_time
         
-        if response.status_code != 200: return None, None
+        if response.status_code != 200: return None, None, None
             
         html = response.text.lower()
         issues = []
@@ -29,15 +33,15 @@ def analyze_website_and_get_email(url):
             
         has_major = any(i in ["Not Mobile Friendly", "Not Secure (No SSL)", "Outdated Design"] for i in issues)
         if not has_major and len(issues) < 2:
-            return None, None
+            return None, None, None
             
         email_pattern = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
         emails = set(email_pattern.findall(response.text))
         
-        # Smart Feature: If email isn't on the homepage, check the /contact page!
+        # UPGRADE 2: Check multiple subpages
         if not emails:
             base_url = url.rstrip('/')
-            for path in ['/contact', '/contact-us']:
+            for path in ['/contact', '/contact-us', '/about', '/about-us']:
                 try:
                     contact_response = requests.get(base_url + path, headers=headers, timeout=5)
                     if contact_response.status_code == 200:
@@ -49,14 +53,18 @@ def analyze_website_and_get_email(url):
         phones = set(phone_pattern.findall(response.text))
         valid_phone = list(phones)[0] if phones else None
         
-        bad_emails = ['your@email.com', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite.com']
-        valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', 'wixpress.com']) and not any(bad in e.lower() for bad in bad_emails)]
+        # UPGRADE 3: Advanced Junk Email Blacklist
+        bad_emails = ['your@', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite', 'no-reply', 'noreply', 'sentry.io', 'wixpress', 'admin@example']
+        valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']) and not any(bad in e.lower() for bad in bad_emails)]
         
         if valid_emails:
             return valid_emails[0], valid_phone, " | ".join(issues)
         elif valid_phone:
             return None, valid_phone, " | ".join(issues)
             
+    except requests.exceptions.RequestException:
+        # Silently pass on connection errors (like dead sites)
+        pass
     except Exception:
         pass
     return None, None, None
@@ -66,7 +74,6 @@ def send_email(target_email, company, website, issues):
     app_password = os.environ.get('GMAIL_PASS')
     
     if not sender_email or not app_password:
-        print("Missing Email Credentials in Environment Variables!")
         return False
         
     subject = f"Quick question about {website}"
@@ -97,54 +104,57 @@ Web Developer"""
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        print(f"Email failed: {e}")
+    except Exception:
         return False
 
+def get_domain(url):
+    try:
+        return urlparse(url).netloc.replace('www.', '')
+    except:
+        return url
+
 def main():
-    # 1. Load Data
     with open('niches.txt') as f: niches = f.read().splitlines()
     with open('cities.txt') as f: cities = f.read().splitlines()
     
     contacted_file = 'contacted.txt'
-    if not os.path.exists(contacted_file):
-        open(contacted_file, 'w').close()
+    if not os.path.exists(contacted_file): open(contacted_file, 'w').close()
         
     with open(contacted_file) as f:
         contacted = set(f.read().splitlines())
         
-    # 2. Pick Random Target
     niche = random.choice(niches)
     city = random.choice(cities)
     query = f'"{niche}" in "{city}"'
     
-    print(f"=== GITHUB ACTIONS OUTREACH BOT ===")
+    print(f"=== GITHUB ACTIONS OUTREACH BOT v2.0 ===")
     print(f"Targeting: {query}")
     
-    # Ignore huge directories so we only audit small business websites
-    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce']
+    # UPGRADE 4: Expanded Directory Blacklist
+    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch']
     
     emails_sent_today = 0
+    skipped_dirs = 0
     
     try:
         with DDGS() as ddgs:
-            # INCREASED to 150 results so it audits a massive amount of websites
             results = list(ddgs.text(query, max_results=150))
             print(f"Found {len(results)} total search results from DuckDuckGo.")
             
-            skipped_dirs = 0
             for result in results:
-                if emails_sent_today >= 15: # Max 15 emails per run to stay super safe
+                if emails_sent_today >= 15: 
                     break
                     
                 website_url = result['href']
                 name = result['title']
+                domain = get_domain(website_url)
                 
                 if any(site in website_url.lower() for site in ignore_sites): 
                     skipped_dirs += 1
                     continue
                     
-                if website_url in contacted: 
+                # UPGRADE 5: Bulletproof Duplicate Checker (Checks Root Domain)
+                if website_url in contacted or domain in contacted: 
                     continue
                     
                 print(f"\nAuditing: {website_url}")
@@ -158,9 +168,11 @@ def main():
                         print(f"  -> EMAIL SENT AUTOMATICALLY!")
                         with open(contacted_file, 'a') as f:
                             f.write(website_url + '\n')
+                            f.write(domain + '\n')
                             f.write(email + '\n')
+                        contacted.update([website_url, domain, email])
                         emails_sent_today += 1
-                        time.sleep(10) # Pause between emails
+                        time.sleep(10)
                 elif website_problems and phone:
                     print(f"  -> Bad site, NO email, but FOUND PHONE: {phone}")
                     with open('phone_leads.txt', 'a') as f:
@@ -172,7 +184,7 @@ def main():
                     
             print(f"\nSkipped {skipped_dirs} big directory websites (Yelp, BBB, etc.)")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during search: {e}")
         
     print(f"\nJob Complete. Sent {emails_sent_today} automated emails today.")
 
