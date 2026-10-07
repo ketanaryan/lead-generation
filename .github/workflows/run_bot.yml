@@ -2,8 +2,8 @@ name: Autonomous Agency Lead Gen Bot
 
 on:
   schedule:
-    # Runs every 3 hours to continuously work while protecting your Gmail limits
-    - cron: '0 */3 * * *'
+    # Runs every 8 hours (3 times a day)
+    - cron: '0 */8 * * *'
   workflow_dispatch: # Allows you to run it manually by clicking a button
 
 jobs:
