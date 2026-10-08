@@ -297,8 +297,8 @@ def main():
                     
             print(f"-> Extracted {len(results)} total potential links from DuckDuckGo!")
             
-            # Massive list of directory keywords to avoid pitching them
-            directory_keywords = ['category', 'directory', 'top-10', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news']
+            # Massive list of directory/blog keywords to avoid pitching them
+            directory_keywords = ['category', 'directory', 'top-', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news', '/resources/', '/guides/', '/insights/', '/post/', '/author/']
             
             for result in results:
                 # Stop if we hit 25 emails AND we have harvested at least 20 phone numbers
@@ -318,9 +318,16 @@ def main():
                 if website_url in contacted or domain in contacted: 
                     continue
                     
-                # SMART DIRECTORY DETECTION
+                # SMART DIRECTORY & BLOG DETECTION
                 is_directory = False
-                if any(k in website_url.lower() for k in directory_keywords) or any(k in name.lower() for k in ['top', 'best', 'list of', 'directory']):
+                url_path = website_url.split(domain)[-1] if domain in website_url else ""
+                
+                if any(k in website_url.lower() for k in directory_keywords):
+                    is_directory = True
+                elif any(k in name.lower() for k in ['top', 'best', 'list of', 'directory', 'most']):
+                    is_directory = True
+                elif url_path.count('-') >= 3: 
+                    # If the URL path has 3+ hyphens (e.g. /top-luxury-spa-dubai), it's almost certainly a blog post, not a business homepage
                     is_directory = True
                     
                 print(f"\nAuditing: {website_url} {'[DIRECTORY DETECTED]' if is_directory else ''}")
