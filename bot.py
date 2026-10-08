@@ -302,75 +302,75 @@ def main():
                     
                 print(f"  -> Found {len(results)} links. Scanning...")
             
-            # Massive list of directory/blog keywords to avoid pitching them
-            directory_keywords = ['category', 'directory', 'top-', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news', '/resources/', '/guides/', '/insights/', '/post/', '/author/']
-            
-            for result in results:
-                # Stop if we hit 25 phones
-                if phone_leads_harvested >= 25: 
-                    break
-                    
-                website_url = result['href']
-                name = result['title']
-                domain = get_domain(website_url)
+                # Massive list of directory/blog keywords to avoid pitching them
+                directory_keywords = ['category', 'directory', 'top-', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news', '/resources/', '/guides/', '/insights/', '/post/', '/author/']
                 
-                # Check if it's obviously a social media site to skip entirely
-                if any(site in website_url.lower() for site in ignore_sites): 
-                    skipped_dirs += 1
-                    continue
+                for result in results:
+                    # Stop if we hit 25 phones
+                    if phone_leads_harvested >= 25: 
+                        break
+                        
+                    website_url = result['href']
+                    name = result['title']
+                    domain = get_domain(website_url)
                     
-                if website_url in contacted or domain in contacted: 
-                    continue
+                    # Check if it's obviously a social media site to skip entirely
+                    if any(site in website_url.lower() for site in ignore_sites): 
+                        skipped_dirs += 1
+                        continue
+                        
+                    if website_url in contacted or domain in contacted: 
+                        continue
+                        
+                    # SMART DIRECTORY & BLOG DETECTION
+                    is_directory = False
+                    url_path = website_url.split(domain)[-1] if domain in website_url else ""
                     
-                # SMART DIRECTORY & BLOG DETECTION
-                is_directory = False
-                url_path = website_url.split(domain)[-1] if domain in website_url else ""
-                
-                if any(k in website_url.lower() for k in directory_keywords):
-                    is_directory = True
-                elif any(k in name.lower() for k in ['top', 'best', 'list of', 'directory', 'most']):
-                    is_directory = True
-                elif url_path.count('-') >= 3: 
-                    # If the URL path has 3+ hyphens (e.g. /top-luxury-spa-dubai), it's almost certainly a blog post, not a business homepage
-                    is_directory = True
+                    if any(k in website_url.lower() for k in directory_keywords):
+                        is_directory = True
+                    elif any(k in name.lower() for k in ['top', 'best', 'list of', 'directory', 'most']):
+                        is_directory = True
+                    elif url_path.count('-') >= 3: 
+                        # If the URL path has 3+ hyphens (e.g. /top-luxury-spa-dubai), it's almost certainly a blog post, not a business homepage
+                        is_directory = True
+                        
+                    print(f"\nAuditing: {website_url} {'[DIRECTORY DETECTED]' if is_directory else ''}")
+                    email, phone, lead_category, issues, tech_data = analyze_website_and_get_email(website_url)
                     
-                print(f"\nAuditing: {website_url} {'[DIRECTORY DETECTED]' if is_directory else ''}")
-                email, phone, lead_category, issues, tech_data = analyze_website_and_get_email(website_url)
-                
-                if tech_data and not is_directory:
-                    print(f"  -> Stack Detected: {tech_data['platform']} | Pixels: {tech_data['pixels']}")
-                
-                # If it's a directory, DO NOT SEND EMAIL. Just harvest data.
-                if is_directory:
-                    if phone:
-                        print(f"  -> Harvested Phone from Directory: {phone}")
+                    if tech_data and not is_directory:
+                        print(f"  -> Stack Detected: {tech_data['platform']} | Pixels: {tech_data['pixels']}")
+                    
+                    # If it's a directory, DO NOT SEND EMAIL. Just harvest data.
+                    if is_directory:
+                        if phone:
+                            print(f"  -> Harvested Phone from Directory: {phone}")
+                            with open('phone_leads.txt', 'a', encoding='utf-8') as f:
+                                f.write(f"Name: {name} | Category: DIRECTORY_LEAD | Source: {domain} | Phone: {phone} | URL: {website_url}\n")
+                            contacted.update([website_url, domain])
+                            phone_leads_harvested += 1
+                        continue
+                    
+                    if email and email not in contacted:
+                        print(f"  -> Found {lead_category} Lead! Email: {email}")
+                        success = send_email(email, name, website_url, lead_category, issues, tech_data)
+                        
+                        if success:
+                            print(f"  -> CLAY-STYLE PITCH SENT AUTOMATICALLY!")
+                            with open(contacted_file, 'a', encoding='utf-8') as f:
+                                f.write(website_url + '\n')
+                                f.write(domain + '\n')
+                                f.write(email + '\n')
+                            contacted.update([website_url, domain, email])
+                            emails_sent_today += 1
+                            time.sleep(12)
+                    elif lead_category and phone:
+                        print(f"  -> Lead, NO email, but FOUND PHONE: {phone}")
                         with open('phone_leads.txt', 'a', encoding='utf-8') as f:
-                            f.write(f"Source: Directory ({domain}) | Phone: {phone} | Extracted Email: {email}\n")
-                        contacted.update([website_url, domain])
+                            f.write(f"Category: {lead_category} | Tech: {tech_data['platform']} | Phone: {phone} | URL: {website_url}\n")
                         phone_leads_harvested += 1
-                    continue
-                
-                if email and email not in contacted:
-                    print(f"  -> Found {lead_category} Lead! Email: {email}")
-                    success = send_email(email, name, website_url, lead_category, issues, tech_data)
-                    
-                    if success:
-                        print(f"  -> CLAY-STYLE PITCH SENT AUTOMATICALLY!")
-                        with open(contacted_file, 'a', encoding='utf-8') as f:
-                            f.write(website_url + '\n')
-                            f.write(domain + '\n')
-                            f.write(email + '\n')
-                        contacted.update([website_url, domain, email])
-                        emails_sent_today += 1
-                        time.sleep(12)
-                elif lead_category and phone:
-                    print(f"  -> Lead, NO email, but FOUND PHONE: {phone}")
-                    with open('phone_leads.txt', 'a', encoding='utf-8') as f:
-                        f.write(f"Category: {lead_category} | Tech: {tech_data['platform']} | Phone: {phone} | URL: {website_url}\n")
-                    phone_leads_harvested += 1
-                elif lead_category:
-                    print(f"  -> {lead_category} site, but NO contact info found.")
-                    
+                    elif lead_category:
+                        print(f"  -> {lead_category} site, but NO contact info found.")
+                        
             print(f"\nSkipped {skipped_dirs} directory websites.")
     except Exception as e:
         print(f"Error during search: {e}")
