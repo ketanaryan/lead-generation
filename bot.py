@@ -265,26 +265,45 @@ def main():
     
     niche = custom_niche if custom_niche else random.choice(niches)
     city = custom_city if custom_city else random.choice(cities)
-    query = f'"{niche}" in "{city}"'
     
-    print(f"=== CLAY.COM STYLE OUTREACH BOT v6.0 ===")
-    print(f"Targeting: {query}")
+    # Removed restrictive exact-match quotes to unleash massive search results
+    queries = [
+        f"{niche} in {city}",
+        f"best {niche} {city}",
+        f"top {niche} services {city}"
+    ]
+    
+    print(f"=== CLAY.COM STYLE OUTREACH BOT v7.0 (DEEP SCAN) ===")
+    print(f"Targeting: {niche} in {city}")
     
     ignore_sites = ['facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'youtube.com', 'zillow', 'tripadvisor']
     
     emails_sent_today = 0
+    phone_leads_harvested = 0
     skipped_dirs = 0
     
     try:
         with DDGS() as ddgs:
             print("\n[Deep Signal Scanning] Hunting for Websites & Phone Numbers...")
-            results = list(ddgs.text(query, max_results=150))
+            
+            # Combine results from multiple broad queries to guarantee maximum volume
+            results = []
+            for q in queries:
+                try:
+                    res = list(ddgs.text(q, max_results=100))
+                    results.extend(res)
+                except Exception:
+                    pass
+                    
+            print(f"-> Extracted {len(results)} total potential links from DuckDuckGo!")
             
             # Massive list of directory keywords to avoid pitching them
             directory_keywords = ['category', 'directory', 'top-10', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news']
             
             for result in results:
-                if emails_sent_today >= 15: 
+                # Stop if we hit 25 emails AND we have harvested at least 20 phone numbers
+                if emails_sent_today >= 25 and phone_leads_harvested >= 20: 
+                    print("\n-> Daily limits reached (25 emails, 20+ phones). Stopping to prevent spam.")
                     break
                     
                 website_url = result['href']
@@ -317,6 +336,7 @@ def main():
                         with open('phone_leads.txt', 'a', encoding='utf-8') as f:
                             f.write(f"Source: Directory ({domain}) | Phone: {phone} | Extracted Email: {email}\n")
                         contacted.update([website_url, domain])
+                        phone_leads_harvested += 1
                     continue
                 
                 if email and email not in contacted:
@@ -336,6 +356,7 @@ def main():
                     print(f"  -> Lead, NO email, but FOUND PHONE: {phone}")
                     with open('phone_leads.txt', 'a', encoding='utf-8') as f:
                         f.write(f"Category: {lead_category} | Tech: {tech_data['platform']} | Phone: {phone} | URL: {website_url}\n")
+                    phone_leads_harvested += 1
                 elif lead_category:
                     print(f"  -> {lead_category} site, but NO contact info found.")
                     
