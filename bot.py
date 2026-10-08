@@ -99,9 +99,16 @@ def analyze_website_and_get_email(url):
                 except:
                     pass
         
-        phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
+        # Advanced Indian Phone Number Regex
+        phone_pattern = re.compile(r'(?:\+91[-.\s]?)?[0-9]{3,4}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}')
         phones = set(phone_pattern.findall(response.text))
-        valid_phone = list(phones)[0] if phones else None
+        
+        valid_phone = None
+        for p in phones:
+            clean_p = re.sub(r'[-.\s+]', '', p)
+            if len(clean_p) >= 10 and len(clean_p) <= 12: # Only keep actual 10-digit numbers (or 12 with 91)
+                valid_phone = p
+                break
         
         bad_emails = ['your@', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite', 'no-reply', 'noreply', 'sentry.io', 'wixpress', 'admin@example']
         valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']) and not any(bad in e.lower() for bad in bad_emails)]
@@ -247,46 +254,14 @@ def main():
     print(f"=== CLAY.COM STYLE OUTREACH BOT v6.0 ===")
     print(f"Targeting: {query}")
     
-    ignore_sites = ['yelp', 'yellowpages', 'bbb', 'angi', 'justia', 'facebook', 'instagram', 'linkedin', 'zillow', 'houzz', 'thumbtack', 'homeadvisor', 'expertise', 'chamberofcommerce', 'tripadvisor', 'mapquest', 'superpages', 'porch', 'indiamart', 'justdial', 'sulekha']
+    ignore_sites = ['facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'youtube.com', 'zillow', 'tripadvisor']
     
     emails_sent_today = 0
     skipped_dirs = 0
     
     try:
         with DDGS() as ddgs:
-            print("\n[Phase 1] Scraping Directories (JustDial, etc.) for Phone Numbers...")
-            try:
-                snippet_query = query + " contact number"
-                snippet_results = list(ddgs.text(snippet_query, max_results=30))
-                no_web_count = 0
-                phone_pattern = re.compile(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}')
-                
-                for result in snippet_results:
-                    href = result.get('href', '').lower()
-                    body = result.get('body', '')
-                    title = result.get('title', '')
-                    
-                    if any(d in href for d in ignore_sites):
-                        phones = phone_pattern.findall(body)
-                        if phones:
-                            phone = phones[0]
-                            lead_line = f"Company/Listing: {title} | Phone: {phone} | Source: {href}"
-                            if lead_line not in contacted:
-                                with open('no_website_leads.txt', 'a', encoding='utf-8') as f:
-                                    f.write(lead_line + '\n')
-                                contacted.add(lead_line)
-                                with open(contacted_file, 'a', encoding='utf-8') as f:
-                                    f.write(lead_line + '\n')
-                                no_web_count += 1
-                                
-                if no_web_count > 0:
-                    print(f"  -> BINGO! Extracted {no_web_count} phone numbers from directories.")
-                else:
-                    print("  -> No phone numbers found in directory snippets this run.")
-            except Exception as e:
-                print(f"  -> Skipping Phase 1 due to ratelimit: {e}")
-
-            print("\n[Phase 2] Deep Signal Scanning (Clay.com Style)...")
+            print("\n[Deep Signal Scanning] Hunting for Websites & Phone Numbers...")
             results = list(ddgs.text(query, max_results=150))
             
             for result in results:
