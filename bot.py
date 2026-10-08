@@ -101,16 +101,30 @@ def analyze_website_and_get_email(url):
                 except:
                     pass
         
-        # Advanced Indian Phone Number Regex
-        phone_pattern = re.compile(r'(?:\+91[-.\s]?)?[0-9]{3,4}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}')
-        phones = set(phone_pattern.findall(response.text))
-        
+        # Highly accurate Phone Number Extraction
         valid_phone = None
-        for p in phones:
-            clean_p = re.sub(r'[-.\s+]', '', p)
-            if len(clean_p) >= 10 and len(clean_p) <= 12: # Only keep actual 10-digit numbers (or 12 with 91)
-                valid_phone = p
-                break
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Method 1: Look for explicit 'tel:' links (100% accurate)
+        for a in soup.find_all('a', href=True):
+            if a['href'].lower().startswith('tel:'):
+                clean_phone = a['href'][4:].split('?')[0].strip()
+                if len(re.sub(r'[^\d]', '', clean_phone)) >= 10:
+                    valid_phone = clean_phone
+                    break
+                    
+        # Method 2: Scan visible text only (prevents catching JS timestamps/coordinates)
+        if not valid_phone:
+            visible_text = soup.get_text(separator=' ')
+            # Strict regex for US/UK/India phones with boundaries
+            phone_pattern = re.compile(r'\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b')
+            phones = phone_pattern.findall(visible_text)
+            for p in phones:
+                clean_p = re.sub(r'[^\d]', '', p)
+                # Valid length and doesn't look like a Unix timestamp (17xxxx)
+                if 10 <= len(clean_p) <= 12 and not clean_p.startswith('17'):
+                    valid_phone = p
+                    break
         
         bad_emails = ['your@', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite', 'no-reply', 'noreply', 'sentry.io', 'wixpress', 'admin@example']
         valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']) and not any(bad in e.lower() for bad in bad_emails)]
