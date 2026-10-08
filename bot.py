@@ -267,16 +267,8 @@ def main():
     niche = custom_niche if custom_niche else random.choice(niches)
     city = custom_city if custom_city else random.choice(cities)
     
-    # Removed restrictive exact-match quotes to unleash massive search results
-    queries = [
-        f"{niche} in {city}",
-        f"best {niche} {city}",
-        f"top {niche} services {city}",
-        f"site:yelp.com OR site:justdial.com OR site:practo.com {niche} {city}" # The Ultimate Directory Hack
-    ]
-    
-    print(f"=== CLAY.COM STYLE OUTREACH BOT v7.0 (DEEP SCAN) ===")
-    print(f"Targeting: {niche} in {city}")
+    print(f"=== CLAY.COM STYLE OUTREACH BOT v8.0 (HUNTER MODE) ===")
+    print(f"Targeting: {niche} in {city} | Goal: 25+ Phone Leads")
     
     ignore_sites = ['facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'youtube.com', 'zillow', 'tripadvisor']
     
@@ -284,28 +276,38 @@ def main():
     phone_leads_harvested = 0
     skipped_dirs = 0
     
+    # Endless modifiers to keep the bot searching until it hits the target
+    modifiers = ["", "services", "near me", "contact number", "list", "top rated", "directory", "best", "affordable", "local", "experts", "contractors", "agencies"]
+    random.shuffle(modifiers)
+    
     try:
         with DDGS() as ddgs:
             print("\n[Deep Signal Scanning] Hunting for Websites & Phone Numbers...")
             
-            # Combine results from multiple broad queries to guarantee maximum volume
-            results = []
-            for q in queries:
-                try:
-                    res = list(ddgs.text(q, max_results=100))
-                    results.extend(res)
-                except Exception:
-                    pass
+            for modifier in modifiers:
+                if phone_leads_harvested >= 25:
+                    print("\n🎯 GOAL REACHED! 25+ Phone numbers harvested. Stopping script.")
+                    break
                     
-            print(f"-> Extracted {len(results)} total potential links from DuckDuckGo!")
+                q = f"{niche} {city} {modifier}".strip()
+                print(f"\n--- Running Search Query: {q} ---")
+                
+                try:
+                    # Fetching 50 results per query to avoid heavy rate limits
+                    results = list(ddgs.text(q, max_results=50))
+                except Exception as e:
+                    print(f"  -> Search Rate Limit Hit. Sleeping for 15 seconds...")
+                    time.sleep(15)
+                    continue
+                    
+                print(f"  -> Found {len(results)} links. Scanning...")
             
             # Massive list of directory/blog keywords to avoid pitching them
             directory_keywords = ['category', 'directory', 'top-', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news', '/resources/', '/guides/', '/insights/', '/post/', '/author/']
             
             for result in results:
-                # Stop if we hit 25 emails AND we have harvested at least 20 phone numbers
-                if emails_sent_today >= 25 and phone_leads_harvested >= 20: 
-                    print("\n-> Daily limits reached (25 emails, 20+ phones). Stopping to prevent spam.")
+                # Stop if we hit 25 phones
+                if phone_leads_harvested >= 25: 
                     break
                     
                 website_url = result['href']
