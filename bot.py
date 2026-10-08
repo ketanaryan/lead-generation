@@ -19,7 +19,9 @@ session.mount('http://', HTTPAdapter(max_retries=retries))
 session.mount('https://', HTTPAdapter(max_retries=retries))
 
 def extract_emails_advanced(html_content, text_content):
-    emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text_content))
+    # Regex updated: Enforces that the Top Level Domain (TLD) ends with at least 2 letters (e.g., .com, .uk) 
+    # This prevents catching javascript packages like "katex@0.16.21" or image files like "user@2x.png"
+    emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}', text_content))
     soup = BeautifulSoup(html_content, 'html.parser')
     for a in soup.find_all('a', href=True):
         if a['href'].lower().startswith('mailto:'):
@@ -265,7 +267,7 @@ def main():
             results = list(ddgs.text(query, max_results=150))
             
             # Massive list of directory keywords to avoid pitching them
-            directory_keywords = ['category', 'directory', 'top-10', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany']
+            directory_keywords = ['category', 'directory', 'top-10', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany', 'wiki', 'pedia', 'blog', 'article', 'news']
             
             for result in results:
                 if emails_sent_today >= 15: 
