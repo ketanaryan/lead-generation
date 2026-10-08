@@ -116,14 +116,15 @@ def analyze_website_and_get_email(url):
         # Method 2: Scan visible text only (prevents catching JS timestamps/coordinates)
         if not valid_phone:
             visible_text = soup.get_text(separator=' ')
-            # Strict regex for US/UK/India phones with boundaries
-            phone_pattern = re.compile(r'\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b')
+            # Comprehensive regex: Matches standard US, standard India (including 5-5 splits like 98765 43210)
+            phone_pattern = re.compile(r'\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b|\b(?:\+91|0)?[-.\s]?[6789]\d{4}[-.\s]?\d{5}\b|\b(?:\+91|0)?[-.\s]?[6789]\d{9}\b')
             phones = phone_pattern.findall(visible_text)
             for p in phones:
+                if not p.strip(): continue
                 clean_p = re.sub(r'[^\d]', '', p)
                 # Valid length and doesn't look like a Unix timestamp (17xxxx)
                 if 10 <= len(clean_p) <= 12 and not clean_p.startswith('17'):
-                    valid_phone = p
+                    valid_phone = p.strip()
                     break
         
         bad_emails = ['your@', 'email@', 'example.com', 'domain.com', 'name@', 'test@', 'info@yoursite', 'no-reply', 'noreply', 'sentry.io', 'wixpress', 'admin@example']
@@ -270,7 +271,8 @@ def main():
     queries = [
         f"{niche} in {city}",
         f"best {niche} {city}",
-        f"top {niche} services {city}"
+        f"top {niche} services {city}",
+        f"site:yelp.com OR site:justdial.com OR site:practo.com {niche} {city}" # The Ultimate Directory Hack
     ]
     
     print(f"=== CLAY.COM STYLE OUTREACH BOT v7.0 (DEEP SCAN) ===")
