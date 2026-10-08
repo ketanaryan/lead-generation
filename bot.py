@@ -264,6 +264,9 @@ def main():
             print("\n[Deep Signal Scanning] Hunting for Websites & Phone Numbers...")
             results = list(ddgs.text(query, max_results=150))
             
+            # Massive list of directory keywords to avoid pitching them
+            directory_keywords = ['category', 'directory', 'top-10', 'best-', 'list', 'yelp', 'yellowpages', 'justdial', 'sulekha', 'indiamart', 'practo', 'lybrate', 'zocdoc', 'lentlo', 'threebestrated', 'urbancompany']
+            
             for result in results:
                 if emails_sent_today >= 15: 
                     break
@@ -272,6 +275,7 @@ def main():
                 name = result['title']
                 domain = get_domain(website_url)
                 
+                # Check if it's obviously a social media site to skip entirely
                 if any(site in website_url.lower() for site in ignore_sites): 
                     skipped_dirs += 1
                     continue
@@ -279,11 +283,25 @@ def main():
                 if website_url in contacted or domain in contacted: 
                     continue
                     
-                print(f"\nAuditing: {website_url}")
+                # SMART DIRECTORY DETECTION
+                is_directory = False
+                if any(k in website_url.lower() for k in directory_keywords) or any(k in name.lower() for k in ['top', 'best', 'list of', 'directory']):
+                    is_directory = True
+                    
+                print(f"\nAuditing: {website_url} {'[DIRECTORY DETECTED]' if is_directory else ''}")
                 email, phone, lead_category, issues, tech_data = analyze_website_and_get_email(website_url)
                 
-                if tech_data:
+                if tech_data and not is_directory:
                     print(f"  -> Stack Detected: {tech_data['platform']} | Pixels: {tech_data['pixels']}")
+                
+                # If it's a directory, DO NOT SEND EMAIL. Just harvest data.
+                if is_directory:
+                    if phone:
+                        print(f"  -> Harvested Phone from Directory: {phone}")
+                        with open('phone_leads.txt', 'a', encoding='utf-8') as f:
+                            f.write(f"Source: Directory ({domain}) | Phone: {phone} | Extracted Email: {email}\n")
+                        contacted.update([website_url, domain])
+                    continue
                 
                 if email and email not in contacted:
                     print(f"  -> Found {lead_category} Lead! Email: {email}")
