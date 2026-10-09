@@ -274,6 +274,7 @@ def main():
     
     emails_sent_today = 0
     phone_leads_harvested = 0
+    seen_domains = set()
     skipped_dirs = 0
     
     # Endless modifiers to keep the bot searching until it hits the target
@@ -313,6 +314,9 @@ def main():
                     website_url = result['href']
                     name = result['title']
                     domain = get_domain(website_url)
+                if domain in seen_domains:
+                    continue
+                seen_domains.add(domain)
                     
                     # Check if it's obviously a social media site to skip entirely
                     if any(site in website_url.lower() for site in ignore_sites): 
